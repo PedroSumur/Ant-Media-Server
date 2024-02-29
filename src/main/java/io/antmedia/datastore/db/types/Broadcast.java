@@ -308,6 +308,9 @@ public class Broadcast {
 	@ApiModelProperty(value = "altitude of the broadcasting location")
 	private String altitude;
 
+	@ApiModelProperty(value = "resolution of the video stream")
+	private String resolution;
+
 	@ApiModelProperty(value = "If this broadcast is a track of a WebRTC stream. This variable is Id of that stream.")
 	private String mainTrackStreamId;
 
@@ -700,7 +703,12 @@ public class Broadcast {
 	public void setAltitude(String altitude) {
 		this.altitude = altitude;
 	}
-
+	public void getResolution(String altitude) {
+		this.resolution = resolution;
+	}
+	public void setResolution(String altitude) {
+		this.resolution = resolution;
+	}
 	public String getMainTrackStreamId() {
 		return mainTrackStreamId;
 	}

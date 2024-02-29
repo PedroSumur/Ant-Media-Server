@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import javax.validation.constraints.NotNull;
 
+import io.antmedia.logger.LoggerUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -36,6 +37,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
+import org.bytedeco.cuda.cudart.__nv_bfloat16_raw;
 import org.json.simple.JSONObject;
 import org.red5.server.adapter.MultiThreadedApplicationAdapter;
 import org.red5.server.api.scope.IScope;
@@ -517,6 +519,7 @@ public class AntMediaApplicationAdapter  extends MultiThreadedApplicationAdapter
 					logger.info("Setting timer to call live stream ended hook for stream:{}",streamId );
 					vertx.runOnContext(e -> notifyHook(listenerHookURL, streamId, HOOK_ACTION_END_LIVE_STREAM, name, category, null, null, metaData));
 				}
+				LoggerUtils.logJsonString("publishStopped", "streamId", streamId , "protocol", "WebRTC" , "streamName",broadcast.getName(),"Category",broadcast.getCategory());
 
 				if (broadcast.isZombi()) {
 					if(broadcast.getMainTrackStreamId() != null && !broadcast.getMainTrackStreamId().isEmpty()) {
@@ -622,7 +625,10 @@ public class AntMediaApplicationAdapter  extends MultiThreadedApplicationAdapter
 
 				for (IStreamListener listener : streamListeners) {
 					listener.streamStarted(broadcast.getStreamId());
-				}	
+				}
+
+				LoggerUtils.logJsonString("publishStarted", "streamId", streamId , "protocol", "WebRTC" , "streamName",broadcast.getName(),"Category",broadcast.getCategory(),"bitrate",Long.toString(broadcast.getBitrate()),"IpAddress" ,broadcast.getIpAddr(),"User-Agent",broadcast.getUserAgent());
+
 			} catch (Exception e) {
 				logger.error(ExceptionUtils.getStackTrace(e));
 			}

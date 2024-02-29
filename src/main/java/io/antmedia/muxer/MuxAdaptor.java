@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import io.antmedia.logger.LoggerUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.mina.core.buffer.IoBuffer;
 import org.bytedeco.ffmpeg.avcodec.AVCodecContext;
@@ -1062,23 +1063,27 @@ public class MuxAdaptor implements IRecordingListener, IEndpointStatusListener {
 
 					queueSize.decrementAndGet();
 
-					if (!firstKeyFrameReceivedChecked && packet.getDataType() == Constants.TYPE_VIDEO_DATA) 
+					if (packet.getDataType() == Constants.TYPE_VIDEO_DATA)
 					{
-						byte frameType = packet.getData().position(0).get();
+						//LoggerUtils.logJsonString("keyFrame", "streamId", streamId , "");
 
-						if ((frameType & 0xF0) == IVideoStreamCodec.FLV_FRAME_KEY) 
-						{
-							firstKeyFrameReceivedChecked = true;
-							if(!appAdapter.isValidStreamParameters(width, height, fps, 0, streamId)) {
-								logger.info("Stream({}) has not passed specified validity checks so it's stopping", streamId);
-								closeRtmpConnection();
-								break;
+						if(!firstKeyFrameReceivedChecked) {
+							byte frameType = packet.getData().position(0).get();
+
+							if ((frameType & 0xF0) == IVideoStreamCodec.FLV_FRAME_KEY) {
+								firstKeyFrameReceivedChecked = true;
+								LoggerUtils.logJsonString("resolution", "streamId", streamId , "width", Integer.toString(width), "height", Integer.toString(height),"fps", Integer.toString(fps));
+
+								if (!appAdapter.isValidStreamParameters(width, height, fps, 0, streamId)) {
+									logger.info("Stream({}) has not passed specified validity checks so it's stopping", streamId);
+									closeRtmpConnection();
+									break;
+								}
+							} else {
+								// return if firstKeyFrameReceived is not received
+								// below return is important otherwise it does not work with like some encoders(vidiu)
+								return;
 							}
-						} else {
-							logger.warn("First video packet is not key frame. It will drop for direct muxing. Stream {}", streamId);
-							// return if firstKeyFrameReceived is not received
-							// below return is important otherwise it does not work with like some encoders(vidiu)
-							return;
 						}
 					}
 

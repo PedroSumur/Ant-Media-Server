@@ -42,6 +42,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import io.antmedia.FFmpegUtilities;
+import io.antmedia.logger.LoggerUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bytedeco.ffmpeg.avcodec.AVBSFContext;
 import org.bytedeco.ffmpeg.avcodec.AVBitStreamFilter;
@@ -208,7 +209,7 @@ public abstract class Muxer {
 			this.firstFrameTimeStamp = firstFrameTimeStamp;
 			this.originalFrameTimeMs = originalFrameTimeMs;
 		}
-		
+
 		public void setFrameRotation(int frameRotation) {
 			this.frameRotation = frameRotation;
 		}
@@ -258,6 +259,7 @@ public abstract class Muxer {
 	 */
 	protected boolean firstKeyFrameReceived = true;
 	private long lastPts;
+	private long lastKeyFramePts=0;
 
 	protected AVDictionary optionDictionary = new AVDictionary(null);
 
@@ -493,8 +495,9 @@ public abstract class Muxer {
 	 *            The content of the data as a AVPacket object
 	 */
 	public synchronized void writePacket(AVPacket pkt, AVStream stream) {
+		int inputStreamIndex = pkt.stream_index();
 
-		if (checkToDropPacket(pkt, stream.codecpar().codec_type())) {
+		if (checkToDropPacket(pkt, stream.codecpar().codec_type(), inputTimeBaseMap.get(inputStreamIndex))) {
 			//drop packet 
 			return;
 		}
@@ -505,7 +508,6 @@ public abstract class Muxer {
 			return;
 		}
 
-		int inputStreamIndex = pkt.stream_index();
 		int outputStreamIndex = inputOutputStreamIndexMap.get(inputStreamIndex);
 		AVStream outStream = outputFormatContext.streams(outputStreamIndex);
 
@@ -543,7 +545,7 @@ public abstract class Muxer {
 		AVRational codecTimebase = inputTimeBaseMap.get(inputStreamIndex);
 		int codecType = outStream.codecpar().codec_type();
 
-		if (!checkToDropPacket(pkt, codecType)) {
+		if (!checkToDropPacket(pkt, codecType,codecTimebase)) {
 			//added for audio video sync
 			writePacket(pkt, codecTimebase,  outStream.time_base(), codecType);
 		}
@@ -991,12 +993,13 @@ public abstract class Muxer {
 	 * 
 	 * @param pkt
 	 * @param codecType
+	 * @param timebase
 	 * @return true to drop the packet, false to not drop packet
 	 */
-	public boolean checkToDropPacket(AVPacket pkt, int codecType) {
-		if (!firstKeyFrameReceived && codecType == AVMEDIA_TYPE_VIDEO) 
+	public boolean checkToDropPacket(AVPacket pkt, int codecType, AVRational timebase) {
+		if (codecType == AVMEDIA_TYPE_VIDEO)
 		{
-			if(firstVideoDts == -1) {
+			if (firstVideoDts == -1) {
 				firstVideoDts = pkt.dts();
 			}
 
@@ -1005,14 +1008,24 @@ public abstract class Muxer {
 			//setting here improves synch between audio and video
 			if (keyFrame == 1) {
 				firstKeyFrameReceived = true;
+
 				logger.warn("First key frame received for stream: {}", streamId);
-			} else {
+				if(lastKeyFramePts != 0) {
+					double keyFrameDiff = pkt.pts() - lastKeyFramePts;
+					double timeDiff =  (keyFrameDiff * ( (double)timebase.num() / (double) timebase.den()) );
+					LoggerUtils.logJsonString("KeyFrameSpacing", "streamId", streamId , "KeyFrameDiff", String.valueOf(timeDiff),"num",Integer.toString(timebase.num()) ,"den", Integer.toString(timebase.den()));
+				}
+				lastKeyFramePts = pkt.pts();
+				//LoggerUtils.logJsonString("resolution", "streamId", streamId , "width", Integer.toString(getVideoWidth()), "height", Integer.toString(getVideoHeight()));
+			} else if (!firstKeyFrameReceived){
 				logger.info("First video packet is not key frame. It will drop for direct muxing. Stream {}", streamId);
+
 				// return if firstKeyFrameReceived is not received
 				// below return is important otherwise it does not work with like some encoders(vidiu)
 				return true;
 
 			}
+
 		}
 		//don't drop packet because it's either audio packet or key frame is received
 		return false;
@@ -1232,7 +1245,7 @@ public abstract class Muxer {
 	 * @param streamIndex
 	 */
 	public synchronized void contextWillChange(AVCodecContext codecContext, int streamIndex) {
-		
+
 	}
 	
 	/**
