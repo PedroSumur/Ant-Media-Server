@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
+import io.antmedia.logger.LoggerUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,7 +78,7 @@ public class ViewerStats {
 					int streamIncrementCounter = getIncreaseCounterMap(streamId);
 					streamIncrementCounter++;
 					increaseCounterMap.put(streamId, streamIncrementCounter);
-					
+					LoggerUtils.logJsonString("playStarted", "streamId", streamId,"protocol",type,"subscriberId",subscriberId);
 				}
 				viewerMap.put(sessionId, System.currentTimeMillis());
 				streamsViewerMap.put(streamId, viewerMap);
@@ -272,10 +273,12 @@ public class ViewerStats {
 						// regard it as not a viewer
 						viewerIterator.remove();
 						numberOfDecrement++;
-						
+
 						String sessionId = viewer.getKey();
 						String subscriberId = sessionId2subscriberId.get(sessionId);
 						// set subscriber status to not connected
+						LoggerUtils.logJsonString("playStopped", "streamId", streamId,"protocol",type,"subscriberId",subscriberId);
+
 						if(subscriberId != null) {
 							// add a disconnected event to the subscriber
 							ConnectionEvent event = new ConnectionEvent();

@@ -9,6 +9,8 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -44,13 +46,13 @@ public class LoggerUtils {
         }
 
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("eventName", eventName);
+        jsonObject.put("eventname", eventName);
 
         for (int i = 0; i < keyValuePairs.length; i += 2) {
             jsonObject.put(keyValuePairs[i], keyValuePairs[i + 1]);
         }
 
-        jsonObject.put("time",java.time.LocalTime.now());
+        jsonObject.put("time",System.currentTimeMillis());
         String log = jsonObject.toJSONString();
         logger.info(log);
         return log;
