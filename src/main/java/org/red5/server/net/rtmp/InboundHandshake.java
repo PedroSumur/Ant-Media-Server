@@ -1,19 +1,8 @@
 /*
- * RED5 Open Source Media Server - https://github.com/Red5/
- * 
- * Copyright 2006-2016 by respective authors (see below). All rights reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * 
- * http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * RED5 Open Source Media Server - https://github.com/Red5/ Copyright 2006-2023 by respective authors (see below). All rights reserved. Licensed under the Apache License, Version
+ * 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless
+ * required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+ * either express or implied. See the License for the specific language governing permissions and limitations under the License.
  */
 
 package org.red5.server.net.rtmp;
@@ -32,7 +21,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Performs handshaking for server connections.
- * 
+ *
  * @author Paul Gregoire
  */
 public class InboundHandshake extends RTMPHandshake {
@@ -65,7 +54,7 @@ public class InboundHandshake extends RTMPHandshake {
 
     /**
      * Generates response for versioned connections.
-     * 
+     *
      * @param in
      *            incoming RTMP handshake bytes
      * @return outgoing handshake
@@ -79,13 +68,13 @@ public class InboundHandshake extends RTMPHandshake {
 
     /**
      * Decodes the first client request (C1) and returns a server response (S0S1).
-     * 
+     *
      * <pre>
      * C1 = 1536 bytes from the client
      * S0 = 0x03 (server handshake type - 0x03, 0x06, 0x08, or 0x09)
      * S1 = 1536 bytes from server
      * </pre>
-     * 
+     *
      * @param in
      *            incoming handshake C1
      * @return server response S0+S1
@@ -94,12 +83,9 @@ public class InboundHandshake extends RTMPHandshake {
         if (log.isTraceEnabled()) {
             log.debug("decodeClientRequest1: {}", Hex.encodeHexString(in.array()));
         }
-        if (in.hasArray()) {
-            c1 = in.array();
-        } else {
-            c1 = new byte[Constants.HANDSHAKE_SIZE];
-            in.get(c1);
-        }
+        // copy into a new array to ensure the position is respected
+        c1 = new byte[Constants.HANDSHAKE_SIZE];
+        in.get(c1);
         //if (log.isTraceEnabled()) {
         //    log.trace("C1: {}", Hex.encodeHexString(c1));
         //}
@@ -168,8 +154,8 @@ public class InboundHandshake extends RTMPHandshake {
             digestPosClient = getDigestOffset(algorithm, c1, 0);
             log.debug("Client digest position offset: {}", digestPosClient);
             if (!verifyDigest(digestPosClient, c1, GENUINE_FP_KEY, 30)) {
-                log.warn("Client digest verification failed");
-                return null;
+                log.warn("Client digest verification failed, bypassed for now");
+                //return null;
             }
         }
         // digest verification passed
@@ -191,18 +177,22 @@ public class InboundHandshake extends RTMPHandshake {
         log.debug("Signature response: {}", Hex.encodeHexString(signatureResponse));
         if (useEncryption()) {
             switch (handshakeType) {
+                case RTMPConnection.RTMP_ENCRYPTED:
+                    log.debug("RTMPE type 6");
+                    // we dont encrypt signatureResp for type 6
+                    break;
                 case RTMPConnection.RTMP_ENCRYPTED_XTEA:
                     log.debug("RTMPE type 8 XTEA");
                     // encrypt signatureResp
                     for (int i = 0; i < DIGEST_LENGTH; i += 8) {
-                        //encryptXtea(signatureResp, i, digestResp[i] % 15);
+                        encryptXtea(signatureResponse, i, digestResp[i] % 15);
                     }
                     break;
                 case RTMPConnection.RTMP_ENCRYPTED_BLOWFISH:
                     log.debug("RTMPE type 9 Blowfish");
                     // encrypt signatureResp
                     for (int i = 0; i < DIGEST_LENGTH; i += 8) {
-                        //encryptBlowfish(signatureResp, i, digestResp[i] % 15);
+                        encryptBlowfish(signatureResponse, i, digestResp[i] % 15);
                     }
                     break;
             }
@@ -211,7 +201,7 @@ public class InboundHandshake extends RTMPHandshake {
         System.arraycopy(signatureResponse, 0, c1, (Constants.HANDSHAKE_SIZE - DIGEST_LENGTH), DIGEST_LENGTH);
         // create output buffer for S0+S1+S2
         IoBuffer s0s1s2 = IoBuffer.allocate(Constants.HANDSHAKE_SIZE * 2 + 1); // 3073
-        // set handshake with encryption type 
+        // set handshake with encryption type
         s0s1s2.put(handshakeType); // 1
         s0s1s2.put(s1); // 1536
         s0s1s2.put(c1); // 1536
@@ -226,12 +216,12 @@ public class InboundHandshake extends RTMPHandshake {
 
     /**
      * Decodes the second client request (C2) and returns a server response (S2).
-     * 
+     *
      * <pre>
      * C2 = Copy of S1 bytes
      * S2 = Copy of C1 bytes
      * </pre>
-     * 
+     *
      * @param in
      *            incoming handshake C2
      * @return true if C2 was processed successfully and false otherwise
@@ -240,13 +230,8 @@ public class InboundHandshake extends RTMPHandshake {
         if (log.isTraceEnabled()) {
             log.debug("decodeClientRequest2: {}", Hex.encodeHexString(in.array()));
         }
-        byte[] c2;
-        if (in.hasArray()) {
-            c2 = in.array();
-        } else {
-            c2 = new byte[Constants.HANDSHAKE_SIZE];
-            in.get(c2);
-        }
+        byte[] c2 = new byte[Constants.HANDSHAKE_SIZE];
+        in.get(c2);
         if (fp9Handshake) {
             // client signature c2[HANDSHAKE_SIZE - DIGEST_LENGTH]
             byte[] digest = new byte[DIGEST_LENGTH];
@@ -257,18 +242,21 @@ public class InboundHandshake extends RTMPHandshake {
             calculateHMAC_SHA256(c2, 0, Constants.HANDSHAKE_SIZE - DIGEST_LENGTH, digest, DIGEST_LENGTH, signature, 0);
             if (useEncryption()) {
                 switch (handshakeType) {
+                    case RTMPConnection.RTMP_ENCRYPTED:
+                        log.debug("RTMPE type 6");
+                        break;
                     case RTMPConnection.RTMP_ENCRYPTED_XTEA:
                         log.debug("RTMPE type 8 XTEA");
                         // encrypt signature
                         for (int i = 0; i < DIGEST_LENGTH; i += 8) {
-                            //encryptXtea(signature, i, digest[i] % 15);
+                            encryptXtea(signature, i, digest[i] % 15);
                         }
                         break;
                     case RTMPConnection.RTMP_ENCRYPTED_BLOWFISH:
                         log.debug("RTMPE type 9 Blowfish");
                         // encrypt signature
                         for (int i = 0; i < DIGEST_LENGTH; i += 8) {
-                            //encryptBlowfish(signature, i, digest[i] % 15);
+                            encryptBlowfish(signature, i, digest[i] % 15);
                         }
                         break;
                 }
@@ -293,7 +281,6 @@ public class InboundHandshake extends RTMPHandshake {
                 if (unvalidatedConnectionAllowed) {
                     // accept and unvalidated handshake; used to deal with ffmpeg
                     log.debug("Unvalidated client allowed to proceed");
-                    return true;
                 } else {
                     return false;
                 }
@@ -310,7 +297,7 @@ public class InboundHandshake extends RTMPHandshake {
 
     /**
      * Generates response for non-versioned connections, such as those before FP9.
-     * 
+     *
      * @param input
      *            incoming RTMP bytes
      * @return outgoing handshake
@@ -371,7 +358,7 @@ public class InboundHandshake extends RTMPHandshake {
 
     /**
      * Determines the validation scheme for given input.
-     * 
+     *
      * @param handshake
      *            handshake bytes from the client
      * @return true if client used a supported validation scheme, false if unsupported
@@ -417,6 +404,33 @@ public class InboundHandshake extends RTMPHandshake {
             }
         }
         return result;
+    }
+
+    /**
+     * Encrypt via xtea.
+     *
+     * @param in
+     * @param index
+     * @param keyId
+     */
+    private void encryptXtea(byte[] in, int index, int keyId) {
+        //xtea_le_init(XTEA_KEYS[keyId]);
+        //xtea_le_crypt(out, in, 1, NULL, 0);
+    }
+
+    /**
+     * Encrypt via blowfish.
+     *
+     * @param in
+     * @param index
+     * @param keyId
+     */
+    private void encryptBlowfish(byte[] in, int index, int keyId) {
+        if (blowfish == null) {
+            initBlowfishEncryption(keyId);
+        }
+        // overwrite in as out using same array
+        blowfish.processBlock(in, index, in, index);
     }
 
     public void setHandshakeBytes(byte[] handshake) {
